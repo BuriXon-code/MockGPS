@@ -48,6 +48,14 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 Or install the APK using any Android package installer.
 
+### Android Studio
+
+The project can also be opened and built directly in [Android Studio](https://developer.android.com/studio).
+
+Open the project directory in Android Studio and allow Gradle to synchronize the project. You can then build and install MockGPS directly from the IDE using the standard **Run** or **Build** actions.
+
+No additional configuration is required beyond the Android SDK and build tools required by the project.
+
 ## Required Android settings
 
 MockGPS has no graphical interface, so its permissions must currently be configured through Android settings.

@@ -6,6 +6,10 @@ MockGPS has no visible activity and no launcher interface. It runs as a foregrou
 
 The project is intentionally small and currently focuses on reliable location mocking rather than exposing a graphical interface.
 
+> [!TIP]  
+> To use the app with Termux, I created a dedicated [termux-mockgps](https://github.com/BuriXon-code/termux-mockgps)
+ command.  
+
 ## Features
 
 * Android 10+.

@@ -8,7 +8,7 @@ The project is intentionally small and currently focuses on reliable location mo
 
 ## Features
 
-* Android 15+.
+* Android 10+.
 * No visible activity.
 * No launcher interface.
 * Foreground location service.
@@ -278,8 +278,32 @@ During the current development stage, completely uninstall the APK, reinstall it
 
 This is a known development-stage limitation.
 
+## Testing
+
+ The app and script were tested on a device with Android 16. Unfortunately, I only have one device, so it's hard for me to test it more thoroughly.
+
+ If you notice any error, please report it.
+
 ## License
 
 GPL-3.0.
 
 See the `LICENSE` file for the full license text.
+
+## Support
+
+### Contact me:
+
+For any issues, suggestions, or questions, reach out via:
+
+- *Email:* support@burixon.dev
+- *Contact form:* [Click here](https://burixon.dev/contact/)
+- *Bug reports:* [Click here](https://burixon.dev/bugreport/#MockGPS)
+
+### Support me:
+
+If you find this script useful, consider supporting my work by making a donation:
+
+[**Donations**](https://burixon.dev/donate/)
+
+Your contributions help in developing new projects and improving existing tools!

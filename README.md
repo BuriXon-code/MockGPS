@@ -1,47 +1,70 @@
 # MockGPS
 
-A minimal Android mock-location service controlled from Termux or ADB.
+MockGPS is an Android application for testing and simulating device location. It provides a foreground location-mocking service and exposes a dedicated **Android broadcast interface** for external control.
 
-MockGPS has no visible activity and no launcher interface. It runs as a foreground service and injects test locations through Android's `gps` and `network` location providers.
+The broadcast interface is a central part of the project: MockGPS can be controlled from scripts, Termux, ADB, automation tools, or another Android application without requiring the MockGPS UI to be open.
 
-The project is intentionally small and currently focuses on reliable location mocking rather than exposing a graphical interface.
+Companion command-line project:
 
-> [!TIP]  
-> To use the app with Termux, I created a dedicated [termux-mockgps](https://github.com/BuriXon-code/termux-mockgps)
- command.  
+**[BuriXon-code/termux-mockgps](https://github.com/BuriXon-code/termux-mockgps)**
 
 ## Features
 
-* Android 10+.
-* No visible activity.
-* No launcher interface.
-* Foreground location service.
-* Android `gps` and `network` test providers.
-* Last location stored inside the Android application.
-* Automatic restoration after reboot.
-* Small ongoing notification showing the current coordinates.
-* Controlled from Termux with simple shell commands.
-* GPL-3.0 licensed.
+- Interactive Android UI with an OpenFreeMap/MapLibre map.
+- Select a mock location directly on the map.
+- Start and stop location mocking from the application.
+- Stores the last selected mock location locally.
+- Optional location drift for small, realistic movement around the selected point.
+- Foreground location service using Android's `gps` and `network` test providers.
+- Persistent state and automatic restoration after reboot when enabled.
+- Optional external broadcast control.
+- Companion POSIX shell command for Termux.
+- Quiet ongoing foreground-service notification showing the current coordinates.
+- GPL-3.0 licensed.
+
+## Compatibility
+
+- **Minimum Android version:** Android 10 (API 29).
+- **Target SDK:** 36.
+- **Compile SDK:** 36.
+- **Java:** 17.
+- **Tested:** Android 16.
+
+The project currently has only been tested on a limited number of devices. OEM-specific background restrictions, battery-management policies, and mock-location behavior can therefore vary between devices.
 
 ## Requirements
 
-* Android 15 or newer.
-* Developer options enabled.
-* Termux, if you want to use the companion command-line tool.
-* MockGPS selected as the system mock-location application.
+Before MockGPS can inject locations, Android must allow it to operate as the mock-location application.
+
+You need:
+
+- Android 10 or newer.
+- Developer options enabled.
+- MockGPS selected as the system mock-location application.
+- Location permission granted to MockGPS.
+- Notification permission enabled on Android versions that require it.
 
 ## Installation
 
-Build the debug APK:
+### Build with Gradle Wrapper
+
+Clone the repository and enter the project directory:
+
+```sh
+git clone https://github.com/BuriXon-code/MockGPS.git
+cd MockGPS
+```
+
+Build a debug APK using the included Gradle Wrapper:
 
 ```sh
 ./gradlew assembleDebug
 ```
 
-The APK will be generated in:
+The APK is generated under:
 
 ```text
-app/build/outputs/apk/debug/
+app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Install it with ADB:
@@ -50,21 +73,19 @@ Install it with ADB:
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Or install the APK using any Android package installer.
+You can also install the APK using an Android package installer.
 
 ### Android Studio
 
-The project can also be opened and built directly in [Android Studio](https://developer.android.com/studio).
+Open the cloned `MockGPS` directory in [Android Studio](https://developer.android.com/studio).
 
-Open the project directory in Android Studio and allow Gradle to synchronize the project. You can then build and install MockGPS directly from the IDE using the standard **Run** or **Build** actions.
+Allow Android Studio to synchronize Gradle, then use **Run** to build and install the application on a connected device, or use the standard **Build** actions to generate an APK.
 
-No additional configuration is required beyond the Android SDK and build tools required by the project.
+The project already contains its Gradle Wrapper and required project configuration. Android Studio still needs a compatible Android SDK installation.
 
-## Required Android settings
+## Android configuration
 
-MockGPS has no graphical interface, so its permissions must currently be configured through Android settings.
-
-### 1. Allow location access
+### 1. Grant location permission
 
 Open:
 
@@ -77,12 +98,6 @@ Settings
 ```
 
 Grant location access.
-
-On Android versions that offer the choice, allow at least:
-
-```text
-Allow while using the app
-```
 
 ### 2. Allow notifications
 
@@ -97,9 +112,9 @@ Settings
 
 Enable notifications.
 
-MockGPS uses a foreground service, which requires a foreground-service notification.
+MockGPS runs its location injector as a foreground service and therefore uses an ongoing notification while the service is active.
 
-### 3. Select MockGPS as the mock-location application
+### 3. Select the mock-location application
 
 Open:
 
@@ -115,151 +130,204 @@ Select:
 MockGPS
 ```
 
-Without this step Android will not allow MockGPS to act as the system mock-location provider.
+Without this setting Android will not accept the injected test locations.
 
-## Using MockGPS from Termux
+## External broadcast control
 
-The companion command-line application is:
+**External broadcasts are one of the most important features of MockGPS.**
 
-[termux-mockgps](https://github.com/BuriXon-code/termux-mockgps)
+The application exposes the exported receiver:
 
-Install that tool and then use:
+```text
+dev.burixon.mockgps.MockGpsReceiver
+```
+
+External tools can send commands directly to this receiver. The companion Termux project uses exactly this interface.
+
+The broadcast command is supplied through the string extra:
+
+```text
+command
+```
+
+Supported commands are:
+
+| Command | Purpose |
+|---|---|
+| `on` | Start mocking using the stored coordinates. |
+| `off` | Stop mocking and disable persistent operation. |
+| `set` | Change the stored mock coordinates. If mocking is active, the new location is applied automatically. |
+| `drift` | Enable or disable location drift. |
+
+### Coordinate extras
+
+The `set` command accepts:
+
+```text
+lat
+lon
+```
+
+Both values are decimal degrees.
+
+Example:
+
+```sh
+adb shell am broadcast \
+  -n dev.burixon.mockgps/.MockGpsReceiver \
+  --es command set \
+  --es lat 50.06143 \
+  --es lon 19.93658
+```
+
+### Start
+
+```sh
+adb shell am broadcast \
+  -n dev.burixon.mockgps/.MockGpsReceiver \
+  --es command on
+```
+
+### Stop
+
+```sh
+adb shell am broadcast \
+  -n dev.burixon.mockgps/.MockGpsReceiver \
+  --es command off
+```
+
+### Drift
+
+The `drift` command uses the string extra:
+
+```text
+drifting
+```
+
+Accepted values include `enable`, `on`, `true`, `disable`, `off`, and `false`.
+
+Example:
+
+```sh
+adb shell am broadcast \
+  -n dev.burixon.mockgps/.MockGpsReceiver \
+  --es command drift \
+  --es drifting enable
+```
+
+### Boot behavior
+
+Boot behavior is controlled through the `boot` extra. Accepted values include `enable`, `on`, `disable`, and `off`.
+
+Example:
+
+```sh
+adb shell am broadcast \
+  -n dev.burixon.mockgps/.MockGpsReceiver \
+  --es boot enable
+```
+
+MockGPS stores this preference and attempts to restore the foreground service after boot when enabled.
+
+### Notification / toast behavior
+
+External commands may provide:
+
+```text
+toast
+```
+
+The current companion Termux script uses the `toast` extra to control whether command-related toast messages are shown.
+
+### Broadcast control switch
+
+The application's **Broadcast commands** setting can disable handling of external broadcasts.
+
+When this option is disabled, commands sent to `MockGpsReceiver` are ignored. Direct Android service operations are separate from this switch.
+
+## Companion Termux command
+
+The recommended command-line frontend is:
+
+**[BuriXon-code/termux-mockgps](https://github.com/BuriXon-code/termux-mockgps)**
+
+It wraps the broadcast/service interface into simple shell commands such as:
 
 ```sh
 termux-mockgps start
-```
-
-MockGPS starts using the last location stored by the Android application.
-
-If no location has been stored yet, MockGPS starts at:
-
-```text
-0.0, 0.0
-```
-
-Change the location with:
-
-```sh
 termux-mockgps set 50.06143 19.93658
-```
-
-Stop mocking:
-
-```sh
 termux-mockgps stop
 ```
 
-Coordinates use the order:
+See the companion repository for installation and complete command documentation.
 
-```text
-latitude longitude
-```
+## Location providers
 
-Explicit coordinate options are also supported by `set`:
-
-```sh
-termux-mockgps set -lat:50.06143 -lon:19.93658
-```
-
-The `start` command does not accept coordinates. Use `set` to change the location.
-
-## Using ADB directly
-
-Start MockGPS using the previously stored location:
-
-```sh
-adb shell am startservice \
-	-n dev.burixon.mockgps/.MockLocationService \
-	--es command on
-```
-
-Change the stored location:
-
-```sh
-adb shell am broadcast \
-	-n dev.burixon.mockgps/.MockGpsReceiver \
-	--es command set \
-	--es lat 50.06143 \
-	--es lon 19.93658
-```
-
-Stop MockGPS:
-
-```sh
-adb shell am broadcast \
-	-n dev.burixon.mockgps/.MockGpsReceiver \
-	--es command off
-```
-
-```sh
-adb shell am stopservice \
-	-n dev.burixon.mockgps/.MockLocationService
-```
-
-## Notification
-
-While MockGPS is running, Android displays a small foreground-service notification:
-
-```text
-MockGPS
-Location: 50.06143, 19.93658
-```
-
-The notification is intentionally configured as a low-importance ongoing notification so that it remains quiet and compact.
-
-Android controls the exact presentation of ongoing notifications. On modern Android versions, users may still be able to dismiss some foreground-service notifications while the device is unlocked. This is system behavior and cannot be completely overridden by a normal third-party application.
-
-The notification is removed when the foreground service actually stops.
-
-## Providers
-
-MockGPS creates test providers named:
+MockGPS creates Android test providers named:
 
 ```text
 gps
 network
 ```
 
-Both providers receive the same mock coordinates.
+Both providers receive the selected mock coordinates.
 
-The `gps` provider uses fine accuracy metadata, while the `network` provider uses coarse accuracy metadata.
+The `gps` provider uses fine-accuracy metadata, while the `network` provider uses coarse-accuracy metadata.
 
-MockGPS does not attempt to replace Google's fused location provider.
+MockGPS does not attempt to replace Google's fused location provider. Applications using other location sources may therefore behave differently.
 
-Applications using another location source may therefore behave differently.
+## Location drift
 
-## Reboot
+When enabled, location drift adds small movement around the selected location. The current implementation uses periodic updates and keeps the simulated movement within a small radius.
 
-When MockGPS is running, the application remembers that mocking should remain enabled.
+Drift can be enabled from the application UI or through the external `drift` broadcast command.
 
-After a device reboot, the application attempts to restore the foreground service and the last stored coordinates.
+## Reboot and persistence
 
-Some Android vendors apply additional background restrictions. Battery-management, autostart, or background-execution settings may therefore affect automatic restoration.
+MockGPS stores:
 
-## Updating the application
+- the last mock latitude and longitude,
+- whether mocking should remain enabled,
+- the boot-autostart preference,
+- the external broadcast setting,
+- the location-drift setting,
+- the last real device location used by the UI.
 
-The project is still under active development.
+When boot restoration is enabled, MockGPS attempts to start the foreground service automatically after device boot.
 
-At this stage, an application update may leave an old service/process state behind on some Android devices.
+Some Android vendors may impose additional battery or background-execution restrictions.
 
-After installing a new development build, you may need to:
+## Notification
 
+While mocking is active, Android displays a foreground-service notification containing the current location, for example:
+
+```text
+Running...
+Location: 50.06143, 19.93658
+```
+
+The application uses a low-importance channel to keep the notification as unobtrusive as possible. Exact notification presentation remains controlled by Android and the device manufacturer.
+
+## Updating during development
+
+MockGPS is still under active development.
+
+On some devices, repeated development installs or service restarts may leave stale application/service state behind. When a new development build behaves unexpectedly, a clean reinstall is a useful troubleshooting step:
+
+```text
 1. Stop MockGPS.
-2. Uninstall the previous APK completely.
+2. Uninstall the existing MockGPS installation.
 3. Install the new APK.
-4. Select MockGPS again under `Select mock location app`.
+4. Select MockGPS again as the mock-location app.
 5. Re-grant required permissions.
 6. Reboot the device.
-
-A complete reinstall and reboot should currently be considered a normal troubleshooting step during development.
-
-This limitation is expected to be removed as the service lifecycle becomes more mature.
+```
 
 ## Troubleshooting
 
-### MockGPS starts but the location does not change
+### MockGPS starts but applications do not see the mock location
 
-Check that:
+Check:
 
 ```text
 Developer options
@@ -267,45 +335,50 @@ Developer options
 → MockGPS
 ```
 
-is still selected.
+Also verify that location permission has been granted.
 
-Also verify that location access has been granted to MockGPS.
+### External commands do nothing
 
-### The notification is missing
+Check the **Broadcast commands** switch inside MockGPS.
 
-Check:
+If it is disabled, `MockGpsReceiver` intentionally ignores external broadcast commands.
+
+### Automatic restoration does not happen after reboot
+
+Check the **Start on boot** setting in MockGPS.
+
+OEM battery-management or autostart restrictions can also interfere with background execution.
+
+### A new development build behaves strangely
+
+Try a complete uninstall/reinstall followed by a reboot, as described above.
+
+## Project structure
+
+The Android application contains the main activity, the exported broadcast receiver, the foreground location service, and persistent application state handling under:
 
 ```text
-Settings
-→ Apps
-→ MockGPS
-→ Notifications
+app/src/main/java/dev/burixon/mockgps/
 ```
 
-and enable notifications.
+The application UI and map are implemented using Android Views and MapLibre Android SDK.
 
-### MockGPS stops working after several start/stop cycles
+## Links
 
-During the current development stage, completely uninstall the APK, reinstall it, and reboot the device.
-
-This is a known development-stage limitation.
-
-## Testing
-
- The app and script were tested on a device with Android 16. Unfortunately, I only have one device, so it's hard for me to test it more thoroughly.
-
- If you notice any error, please report it.
+- **MockGPS:** https://github.com/BuriXon-code/MockGPS
+- **termux-mockgps:** https://github.com/BuriXon-code/termux-mockgps
+- **Website:** https://burixon.dev/MockGPS/
+- **OpenFreeMap style:** https://tiles.openfreemap.org/styles/liberty
+- **Donations:** https://buycoffee.to/burixon-code
 
 ## License
 
 GPL-3.0.
 
-See the `LICENSE` file for the full license text.
+See [`LICENSE`](LICENSE) for the full license text.
 
 ## Support
-
 ### Contact me:
-
 For any issues, suggestions, or questions, reach out via:
 
 - *Email:* support@burixon.dev
@@ -313,7 +386,6 @@ For any issues, suggestions, or questions, reach out via:
 - *Bug reports:* [Click here](https://burixon.dev/bugreport/#MockGPS)
 
 ### Support me:
-
 If you find this script useful, consider supporting my work by making a donation:
 
 [**Donations**](https://burixon.dev/donate/)

@@ -1,21 +1,3 @@
-/*
- * MockGPS
- * Copyright (C) 2026 BuriXon
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package dev.burixon.mockgps
 
 import android.content.Context
@@ -26,7 +8,22 @@ object State {
 
     private const val LAT = "lat"
     private const val LON = "lon"
+
+    private const val REAL_LAT = "real_lat"
+    private const val REAL_LON = "real_lon"
+
     private const val DESIRED_ENABLED = "desired_enabled"
+    private const val SERVICE_RUNNING = "service_running"
+
+    private const val AUTO_START = "auto_start"
+    private const val BROADCAST_ENABLED = "broadcast_enabled"
+
+    private const val NOTIFY_MODE = "notify_mode"
+    private const val DRIFTING = "drifting"
+
+    const val NOTIFY_NONE = "none"
+    const val NOTIFY_PUSH = "push"
+    const val NOTIFY_TOAST = "toast"
 
     private fun prefs(context: Context) =
         context.createDeviceProtectedStorageContext()
@@ -42,23 +39,40 @@ object State {
     ) {
         prefs(context)
             .edit()
-            .putString(LAT, lat.toString())
-            .putString(LON, lon.toString())
+            .putString(
+                LAT,
+                lat.toString()
+            )
+            .putString(
+                LON,
+                lon.toString()
+            )
             .commit()
     }
 
-    fun getLat(context: Context): Double? =
+    fun getLat(
+        context: Context
+    ): Double? =
         prefs(context)
-            .getString(LAT, null)
+            .getString(
+                LAT,
+                null
+            )
             ?.toDoubleOrNull()
 
-    fun getLon(context: Context): Double? =
+    fun getLon(
+        context: Context
+    ): Double? =
         prefs(context)
-            .getString(LON, null)
+            .getString(
+                LON,
+                null
+            )
             ?.toDoubleOrNull()
 
-    fun ensureLocation(context: Context) {
-
+    fun ensureLocation(
+        context: Context
+    ) {
         if (
             getLat(context) == null ||
             getLon(context) == null
@@ -70,6 +84,44 @@ object State {
             )
         }
     }
+
+    fun setRealLocation(
+        context: Context,
+        lat: Double,
+        lon: Double
+    ) {
+        prefs(context)
+            .edit()
+            .putString(
+                REAL_LAT,
+                lat.toString()
+            )
+            .putString(
+                REAL_LON,
+                lon.toString()
+            )
+            .commit()
+    }
+
+    fun getRealLat(
+        context: Context
+    ): Double? =
+        prefs(context)
+            .getString(
+                REAL_LAT,
+                null
+            )
+            ?.toDoubleOrNull()
+
+    fun getRealLon(
+        context: Context
+    ): Double? =
+        prefs(context)
+            .getString(
+                REAL_LON,
+                null
+            )
+            ?.toDoubleOrNull()
 
     fun setDesiredEnabled(
         context: Context,
@@ -90,6 +142,126 @@ object State {
         prefs(context)
             .getBoolean(
                 DESIRED_ENABLED,
+                false
+            )
+
+    fun setServiceRunning(
+        context: Context,
+        running: Boolean
+    ) {
+        prefs(context)
+            .edit()
+            .putBoolean(
+                SERVICE_RUNNING,
+                running
+            )
+            .commit()
+    }
+
+    fun isServiceRunning(
+        context: Context
+    ): Boolean =
+        prefs(context)
+            .getBoolean(
+                SERVICE_RUNNING,
+                false
+            )
+
+    fun setAutoStart(
+        context: Context,
+        enabled: Boolean
+    ) {
+        prefs(context)
+            .edit()
+            .putBoolean(
+                AUTO_START,
+                enabled
+            )
+            .commit()
+    }
+
+    fun isAutoStart(
+        context: Context
+    ): Boolean =
+        prefs(context)
+            .getBoolean(
+                AUTO_START,
+                false
+            )
+
+    fun setBroadcastEnabled(
+        context: Context,
+        enabled: Boolean
+    ) {
+        prefs(context)
+            .edit()
+            .putBoolean(
+                BROADCAST_ENABLED,
+                enabled
+            )
+            .commit()
+    }
+
+    fun isBroadcastEnabled(
+        context: Context
+    ): Boolean =
+        prefs(context)
+            .getBoolean(
+                BROADCAST_ENABLED,
+                true
+            )
+
+    fun setNotifyMode(
+        context: Context,
+        mode: String
+    ) {
+        val normalized =
+            when (mode) {
+                NOTIFY_NONE,
+                NOTIFY_PUSH,
+                NOTIFY_TOAST -> mode
+
+                else -> NOTIFY_TOAST
+            }
+
+        prefs(context)
+            .edit()
+            .putString(
+                NOTIFY_MODE,
+                normalized
+            )
+            .commit()
+    }
+
+    fun getNotifyMode(
+        context: Context
+    ): String =
+        prefs(context)
+            .getString(
+                NOTIFY_MODE,
+                NOTIFY_TOAST
+            )
+            ?: NOTIFY_TOAST
+
+    fun setDrifting(
+        context: Context,
+        enabled: Boolean
+    ) {
+        prefs(context)
+            .edit()
+            .putBoolean(
+                DRIFTING,
+                enabled
+            )
+            .commit()
+    }
+
+    fun isDrifting(
+        context: Context
+    ): Boolean =
+        prefs(context)
+            .getBoolean(
+                DRIFTING,
                 false
             )
 

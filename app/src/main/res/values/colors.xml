@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+
+    <color name="ui_background">#EEF3F8</color>
+    <color name="drawer_background">#F5F8FB</color>
+
+    <color name="panel_background">#E4EDF6</color>
+    <color name="drawer_header_background">#DCE9F5</color>
+
+    <color name="baby_blue">#69AEEA</color>
+    <color name="baby_blue_dark">#4C96D9</color>
+
+    <color name="start_blue">#72B5EE</color>
+    <color name="stop_red">#E47D86</color>
+
+    <color name="button_text">#173048</color>
+
+    <color name="text_primary">#243443</color>
+    <color name="text_secondary">#607386</color>
+    <color name="text_muted">#8393A2</color>
+
+    <color name="divider">#CBD7E2</color>
+
+    <color name="map_overlay_text">#FFFFFF</color>
+
 </resources>

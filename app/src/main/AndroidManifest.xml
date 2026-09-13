@@ -13,9 +13,26 @@
 
     <application
         android:allowBackup="false"
-        android:label="MockGPS"
         android:icon="@mipmap/ic_launcher"
-        android:supportsRtl="true">
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="MockGPS"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MockGPS">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified">
+
+            <intent-filter>
+                <action
+                    android:name="android.intent.action.MAIN" />
+
+                <category
+                    android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
 
         <receiver
             android:name=".MockGpsReceiver"
@@ -27,10 +44,19 @@
             android:exported="true">
 
             <intent-filter>
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.USER_UNLOCKED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+
+                <action
+                    android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+
+                <action
+                    android:name="android.intent.action.BOOT_COMPLETED" />
+
+                <action
+                    android:name="android.intent.action.USER_UNLOCKED" />
+
+                <action
+                    android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+
             </intent-filter>
 
         </receiver>
@@ -38,6 +64,7 @@
         <service
             android:name=".MockLocationService"
             android:exported="true"
+            android:stopWithTask="false"
             android:foregroundServiceType="location" />
 
     </application>

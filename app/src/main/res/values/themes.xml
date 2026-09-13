@@ -2,9 +2,35 @@
 <resources>
 
     <style
-        name="Theme.MockGPS.NoDisplay"
-        parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:windowNoDisplay">true</item>
+        name="Theme.MockGPS"
+        parent="android:style/Theme.Material.NoActionBar">
+
+        <item name="android:fontFamily">sans</item>
+
+        <item name="android:colorAccent">
+            @color/baby_blue
+        </item>
+
+        <item name="android:windowNoTitle">
+            true
+        </item>
+
+        <item name="android:statusBarColor">
+            @android:color/transparent
+        </item>
+
+        <item name="android:navigationBarColor">
+            @color/ui_background
+        </item>
+
+        <item name="android:windowLightStatusBar">
+            false
+        </item>
+
+        <item name="android:windowLightNavigationBar">
+            true
+        </item>
+
     </style>
 
 </resources>

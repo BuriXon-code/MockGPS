@@ -1,29 +1,15 @@
-/*
- * MockGPS
- * Copyright (C) 2026 BuriXon
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
-
 package dev.burixon.mockgps
 
+import java.util.Locale
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.location.Criteria
 import android.location.Location
 import android.location.LocationManager
 import android.location.provider.ProviderProperties
@@ -32,41 +18,61 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
+import kotlin.math.cos
+import kotlin.random.Random
 
 class MockLocationService : Service() {
 
     companion object {
-        private const val CHANNEL_ID = "mockgps"
-        private const val ALERT_CHANNEL_ID = "mockgps_alerts"
 
-        private const val NOTIFICATION_ID = 1
-        private const val ALERT_NOTIFICATION_ID = 2
+        const val COMMAND = "command"
 
-        private const val COMMAND = "command"
-        private const val COMMAND_ON = "on"
+        const val COMMAND_ON = "on"
+        const val COMMAND_OFF = "off"
 
-        private const val EXTRA_LAT = "lat"
-        private const val EXTRA_LON = "lon"
-
-        private const val UPDATE_INTERVAL = 1000L
+        const val EXTRA_TOAST = "toast"
 
         private const val GPS =
             LocationManager.GPS_PROVIDER
 
         private const val NETWORK =
             LocationManager.NETWORK_PROVIDER
+
+        private const val NOTIFICATION_ID =
+            1001
+
+        private const val CHANNEL_ID =
+            "mockgps"
+
+        private const val RESTART_REQUEST_CODE =
+            1001
+
+        private const val UPDATE_INTERVAL =
+            1000L
+
+        private const val DRIFT_INTERVAL =
+            2500L
+
+        private const val MAX_DRIFT_METERS =
+            15.0
     }
 
     private lateinit var locationManager: LocationManager
 
     private val handler =
-        Handler(Looper.getMainLooper())
+        Handler(
+            Looper.getMainLooper()
+        )
 
     private var gpsReady = false
     private var networkReady = false
 
-    private var notificationLat: Double? = null
-    private var notificationLon: Double? = null
+    private var driftLat: Double? = null
+    private var driftLon: Double? = null
+    private var driftAccuracy = 0f
+    private var nextDriftUpdate = 0L
+
+    private var shouldToastOnStart = false
 
     private val updateRunnable =
         object : Runnable {
@@ -84,6 +90,14 @@ class MockLocationService : Service() {
 
                 publishCurrent()
 
+                /*
+                 * Re-post the same notification continuously.
+                 * It is the single persistent notification for the service.
+                 * If an OEM removes it, the next update recreates it.
+                 */
+
+                updateNotification()
+
                 handler.postDelayed(
                     this,
                     UPDATE_INTERVAL
@@ -99,41 +113,20 @@ class MockLocationService : Service() {
                 LocationManager::class.java
             )
 
-        createNotificationChannels()
+        State.setServiceRunning(
+            this,
+            false
+        )
 
-        try {
+        createNotificationChannel()
 
-            startForeground(
-                NOTIFICATION_ID,
-                createStartingNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            )
+        startForeground(
+            NOTIFICATION_ID,
+            createNotification(),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        )
 
-            if (!createProviders()) {
-                stopServiceCleanly()
-                return
-            }
-
-        } catch (_: Exception) {
-            stopServiceCleanly()
-            return
-        }
-
-        if (
-            State.isDesiredEnabled(this)
-        ) {
-            State.ensureLocation(this)
-
-            handler.removeCallbacks(
-                updateRunnable
-            )
-
-            publishCurrent()
-
-            handler.post(
-                updateRunnable
-            )
-        }
+        createProviders()
     }
 
     override fun onStartCommand(
@@ -142,51 +135,72 @@ class MockLocationService : Service() {
         startId: Int
     ): Int {
 
-        val command =
-            intent?.getStringExtra(COMMAND)
+        when (
+            intent?.getStringExtra(
+                COMMAND
+            )
+        ) {
 
-        if (command == COMMAND_ON) {
+            COMMAND_ON -> {
 
-            val lat =
-                intent
-                    .getStringExtra(EXTRA_LAT)
-                    ?.toDoubleOrNull()
+                shouldToastOnStart =
+                    intent.getBooleanExtra(
+                        EXTRA_TOAST,
+                        false
+                    )
 
-            val lon =
-                intent
-                    .getStringExtra(EXTRA_LON)
-                    ?.toDoubleOrNull()
-
-            if (
-                lat != null &&
-                lon != null &&
-                State.validLat(lat) &&
-                State.validLon(lon)
-            ) {
-                State.setLocation(
+                State.setDesiredEnabled(
                     this,
-                    lat,
-                    lon
+                    true
                 )
+
+                startMocking()
+
+                if (shouldToastOnStart) {
+                    android.widget.Toast
+                        .makeText(
+                            this,
+                            "Mocking started.",
+                            android.widget.Toast.LENGTH_SHORT
+                        )
+                        .show()
+                }
+
+                shouldToastOnStart =
+                    false
             }
 
-            State.ensureLocation(this)
+            COMMAND_OFF -> {
 
-            State.setDesiredEnabled(
-                this,
-                true
-            )
+                State.setDesiredEnabled(
+                    this,
+                    false
+                )
 
-            startMocking()
-        }
+                stopServiceCleanly()
 
-        else if (intent == null) {
+                stopSelfResult(
+                    startId
+                )
 
-            if (
-                State.isDesiredEnabled(this)
-            ) {
-                State.ensureLocation(this)
-                startMocking()
+                return START_NOT_STICKY
+            }
+
+            null -> {
+
+                if (
+                    State.isDesiredEnabled(this)
+                ) {
+                    startMocking()
+                } else {
+                    stopServiceCleanly()
+
+                    stopSelfResult(
+                        startId
+                    )
+
+                    return START_NOT_STICKY
+                }
             }
         }
 
@@ -196,126 +210,353 @@ class MockLocationService : Service() {
     private fun startMocking() {
 
         if (
-            !gpsReady &&
+            !gpsReady ||
             !networkReady
         ) {
-            if (!createProviders()) {
-
-                State.setDesiredEnabled(
-                    this,
-                    false
-                )
-
-                stopServiceCleanly()
-                return
-            }
+            createProviders()
         }
+
+        if (
+            !gpsReady ||
+            !networkReady
+        ) {
+
+            State.setServiceRunning(
+                this,
+                false
+            )
+
+            scheduleRestart()
+
+            return
+        }
+
+        State.ensureLocation(
+            this
+        )
+
+        State.setServiceRunning(
+            this,
+            true
+        )
 
         handler.removeCallbacks(
             updateRunnable
         )
 
-        publishCurrent()
+        updateRunnable.run()
+    }
 
-        handler.post(
-            updateRunnable
+    private fun createProviders() {
+
+        createProvider(
+            GPS,
+            true
+        )
+
+        createProvider(
+            NETWORK,
+            false
         )
     }
 
-    private fun createProviders(): Boolean {
+    private fun createProvider(
+        provider: String,
+        isGps: Boolean
+    ) {
 
-        if (!gpsReady) {
-            try {
-                createGpsProvider()
-            } catch (_: Exception) {
-                gpsReady = false
+        try {
+
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.S
+            ) {
+
+                val properties: ProviderProperties =
+                    ProviderProperties.Builder()
+                        .setAccuracy(
+                            if (isGps) {
+                                ProviderProperties
+                                    .ACCURACY_FINE
+                            } else {
+                                ProviderProperties
+                                    .ACCURACY_COARSE
+                            }
+                        )
+                        .setPowerUsage(
+                            ProviderProperties
+                                .POWER_USAGE_LOW
+                        )
+                        .setHasSpeedSupport(true)
+                        .setHasBearingSupport(true)
+                        .setHasAltitudeSupport(true)
+                        .setHasSatelliteRequirement(false)
+                        .build()
+
+                @Suppress("DEPRECATION")
+                try {
+                    locationManager.removeTestProvider(
+                        provider
+                    )
+                } catch (_: Exception) {
+                }
+
+                locationManager.addTestProvider(
+                    provider,
+                    properties
+                )
+
+            } else {
+
+                @Suppress("DEPRECATION")
+                try {
+                    locationManager.removeTestProvider(
+                        provider
+                    )
+                } catch (_: Exception) {
+                }
+
+                @Suppress("DEPRECATION")
+                locationManager.addTestProvider(
+                    provider,
+                    false,
+                    false,
+                    false,
+                    false,
+                    true,
+                    true,
+                    true,
+                    Criteria.POWER_LOW,
+                    if (isGps) {
+                        Criteria.ACCURACY_FINE
+                    } else {
+                        Criteria.ACCURACY_COARSE
+                    }
+                )
             }
-        }
 
-        if (!networkReady) {
-            try {
-                createNetworkProvider()
-            } catch (_: Exception) {
+            @Suppress("DEPRECATION")
+            locationManager.setTestProviderEnabled(
+                provider,
+                true
+            )
+
+            if (isGps) {
+                gpsReady = true
+            } else {
+                networkReady = true
+            }
+
+        } catch (_: Exception) {
+
+            if (isGps) {
+                gpsReady = false
+            } else {
                 networkReady = false
             }
         }
-
-        return gpsReady || networkReady
-    }
-
-    private fun createGpsProvider() {
-
-        val properties =
-            ProviderProperties.Builder()
-                .setAccuracy(
-                    ProviderProperties.ACCURACY_FINE
-                )
-                .setPowerUsage(
-                    ProviderProperties.POWER_USAGE_LOW
-                )
-                .setHasSpeedSupport(true)
-                .setHasBearingSupport(true)
-                .setHasAltitudeSupport(true)
-                .setHasSatelliteRequirement(false)
-                .build()
-
-        try {
-            locationManager.removeTestProvider(
-                GPS
-            )
-        } catch (_: Exception) {
-        }
-
-        locationManager.addTestProvider(
-            GPS,
-            properties
-        )
-
-        locationManager.setTestProviderEnabled(
-            GPS,
-            true
-        )
-
-        gpsReady = true
-    }
-
-    private fun createNetworkProvider() {
-
-        val properties =
-            ProviderProperties.Builder()
-                .setAccuracy(
-                    ProviderProperties.ACCURACY_COARSE
-                )
-                .setPowerUsage(
-                    ProviderProperties.POWER_USAGE_LOW
-                )
-                .setHasSpeedSupport(true)
-                .setHasBearingSupport(true)
-                .setHasAltitudeSupport(true)
-                .setHasSatelliteRequirement(false)
-                .build()
-
-        try {
-            locationManager.removeTestProvider(
-                NETWORK
-            )
-        } catch (_: Exception) {
-        }
-
-        locationManager.addTestProvider(
-            NETWORK,
-            properties
-        )
-
-        locationManager.setTestProviderEnabled(
-            NETWORK,
-            true
-        )
-
-        networkReady = true
     }
 
     private fun publishCurrent() {
+
+        val baseLat =
+            State.getLat(this)
+                ?: return
+
+        val baseLon =
+            State.getLon(this)
+                ?: return
+
+        val drifting =
+            State.isDrifting(this)
+
+        val now =
+            System.currentTimeMillis()
+
+        var lat = baseLat
+        var lon = baseLon
+        var accuracy = 0f
+
+        if (drifting) {
+
+            if (
+                now >= nextDriftUpdate ||
+                driftLat == null ||
+                driftLon == null
+            ) {
+
+                val angle =
+                    Random.nextDouble(
+                        0.0,
+                        Math.PI * 2.0
+                    )
+
+                val distance =
+                    Random.nextDouble(
+                        2.0,
+                        MAX_DRIFT_METERS
+                    )
+
+                val metersPerDegreeLat =
+                    111_320.0
+
+                val metersPerDegreeLon =
+                    111_320.0 *
+                            cos(
+                                Math.toRadians(
+                                    baseLat
+                                )
+                            )
+
+                val offsetLat =
+                    cos(angle) *
+                            distance /
+                            metersPerDegreeLat
+
+                val offsetLon =
+                    kotlin.math.sin(angle) *
+                            distance /
+                            metersPerDegreeLon
+
+                driftLat =
+                    baseLat +
+                            offsetLat
+
+                driftLon =
+                    baseLon +
+                            offsetLon
+
+                driftAccuracy =
+                    Random.nextFloat() *
+                            50.0f
+
+                nextDriftUpdate =
+                    now +
+                            DRIFT_INTERVAL
+            }
+
+            lat =
+                driftLat
+                    ?: baseLat
+
+            lon =
+                driftLon
+                    ?: baseLon
+
+            accuracy =
+                driftAccuracy
+
+        } else {
+
+            /*
+             * Drift disabled:
+             * exact selected coordinates and 0 accuracy.
+             */
+
+            driftLat = null
+            driftLon = null
+            driftAccuracy = 0f
+            nextDriftUpdate = 0L
+
+            lat = baseLat
+            lon = baseLon
+            accuracy = 0f
+        }
+
+        publish(
+            GPS,
+            lat,
+            lon,
+            accuracy,
+            now
+        )
+
+        publish(
+            NETWORK,
+            lat,
+            lon,
+            accuracy,
+            now
+        )
+    }
+
+    private fun publish(
+        provider: String,
+        lat: Double,
+        lon: Double,
+        accuracy: Float,
+        time: Long
+    ) {
+
+        try {
+
+            val location =
+                Location(provider).apply {
+
+                    latitude = lat
+                    longitude = lon
+
+                    this.accuracy =
+                        accuracy
+
+                    altitude = 0.0
+                    speed = 0f
+                    bearing = 0f
+
+                    this.time =
+                        time
+
+                    elapsedRealtimeNanos =
+                        SystemClock
+                            .elapsedRealtimeNanos()
+                }
+
+            @Suppress("DEPRECATION")
+            locationManager.setTestProviderLocation(
+                provider,
+                location
+            )
+
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun createNotificationChannel() {
+
+        val manager =
+            getSystemService(
+                NotificationManager::class.java
+            )
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                "MockGPS",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description =
+                    "Persistent MockGPS service"
+            }
+        )
+    }
+
+    private fun createNotification(): Notification {
+
+        val launchIntent =
+            packageManager.getLaunchIntentForPackage(
+                packageName
+            )
+
+        val pendingIntent =
+            launchIntent?.let {
+                PendingIntent.getActivity(
+                    this,
+                    0,
+                    it,
+                    PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                )
+            }
 
         val lat =
             State.getLat(this)
@@ -323,269 +564,162 @@ class MockLocationService : Service() {
         val lon =
             State.getLon(this)
 
-        if (
-            lat == null ||
-            lon == null ||
-            !State.validLat(lat) ||
-            !State.validLon(lon)
-        ) {
-            return
-        }
-
-        if (gpsReady) {
-            publish(
-                GPS,
-                lat,
-                lon
-            )
-        }
-
-        if (networkReady) {
-            publish(
-                NETWORK,
-                lat,
-                lon
-            )
-        }
-
-        updateNotification(
-            lat,
-            lon
-        )
-    }
-
-    private fun publish(
-        provider: String,
-        lat: Double,
-        lon: Double
-    ) {
-
-        val location =
-            Location(provider)
-
-        location.latitude = lat
-        location.longitude = lon
-
-        location.accuracy =
-            if (provider == GPS) {
-                3f
-            } else {
-                50f
-            }
-
-        location.altitude = 0.0
-        location.time =
-            System.currentTimeMillis()
-
-        location.elapsedRealtimeNanos =
-            SystemClock.elapsedRealtimeNanos()
-
-        location.speed = 0f
-        location.bearing = 0f
-
-        try {
-            locationManager.setTestProviderLocation(
-                provider,
-                location
-            )
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun updateNotification(
-        lat: Double,
-        lon: Double
-    ) {
-
-        if (
-            notificationLat == lat &&
-            notificationLon == lon
-        ) {
-            return
-        }
-
-        val changed =
-            notificationLat != null &&
-                    notificationLon != null
-
-        notificationLat = lat
-        notificationLon = lon
-
-        getSystemService(
-            NotificationManager::class.java
-        ).notify(
-            NOTIFICATION_ID,
-            createLocationNotification(
-                lat,
-                lon
-            )
-        )
-
-        if (changed) {
-            getSystemService(
-                NotificationManager::class.java
-            ).notify(
-                ALERT_NOTIFICATION_ID,
-                createLocationChangedNotification(
+        val coordinateText =
+            if (
+                lat != null &&
+                lon != null
+            ) {
+                String.format(
+                    Locale.US,
+                    "%.6f, %.6f",
                     lat,
                     lon
                 )
-            )
-        }
-    }
+            } else {
+                "No location selected"
+            }
 
-    private fun createNotificationChannels() {
-
-        if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.O
-        ) {
-
-            val notificationChannel =
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "MockGPS",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-
-            notificationChannel.setSound(
-                null,
-                null
-            )
-
-            notificationChannel.enableVibration(
-                false
-            )
-
-            val alertChannel =
-                NotificationChannel(
-                    ALERT_CHANNEL_ID,
-                    "Location updates",
-                    NotificationManager.IMPORTANCE_HIGH
-                )
-
-            alertChannel.enableVibration(
-                true
-            )
-
-            alertChannel.vibrationPattern =
-                longArrayOf(
-                    0,
-                    200
-                )
-
-            getSystemService(
-                NotificationManager::class.java
-            ).createNotificationChannels(
-                listOf(
-                    notificationChannel,
-                    alertChannel
-                )
-            )
-        }
-    }
-
-    private fun notificationBuilder(
-        channelId: String
-    ): Notification.Builder {
-
-        return if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.O
-        ) {
+        val builder =
             Notification.Builder(
                 this,
-                channelId
+                CHANNEL_ID
             )
-        } else {
-            Notification.Builder(this)
+                .setSmallIcon(
+                    R.mipmap.ic_launcher
+                )
+                .setContentTitle(
+                    "Running..."
+                )
+                .setContentText(
+                    coordinateText
+                )
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .setPriority(
+                    Notification.PRIORITY_MIN
+                )
+
+        if (pendingIntent != null) {
+            builder.setContentIntent(
+                pendingIntent
+            )
         }
+
+        return builder.build()
     }
 
-    private fun createStartingNotification():
-            Notification {
+    private fun updateNotification() {
 
-        return notificationBuilder(
-            CHANNEL_ID
+        val manager =
+            getSystemService(
+                NotificationManager::class.java
+            )
+
+        manager.notify(
+            NOTIFICATION_ID,
+            createNotification()
         )
-            .setContentTitle("MockGPS")
-            .setContentText(
-                "Starting mock location..."
-            )
-            .setSmallIcon(
-                android.R.drawable.ic_menu_mylocation
-            )
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(
-                Notification.CATEGORY_SERVICE
-            )
-            .setShowWhen(false)
-            .build()
     }
 
-    private fun createLocationNotification(
-        lat: Double,
-        lon: Double
-    ): Notification {
+    private fun scheduleRestart() {
 
-        return notificationBuilder(
-            CHANNEL_ID
+        if (
+            !State.isDesiredEnabled(this)
+        ) {
+            return
+        }
+
+        val alarmManager =
+            getSystemService(
+                AlarmManager::class.java
+            )
+
+        val intent =
+            Intent(
+                this,
+                BootReceiver::class.java
+            ).apply {
+                action =
+                    BootReceiver
+                        .ACTION_RESTART_SERVICE
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                this,
+                RESTART_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        alarmManager.set(
+            AlarmManager.RTC_WAKEUP,
+            System.currentTimeMillis() + 1000L,
+            pendingIntent
         )
-            .setContentTitle("MockGPS")
-            .setContentText(
-                "Location: $lat, $lon"
-            )
-            .setSmallIcon(
-                android.R.drawable.ic_menu_mylocation
-            )
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setCategory(
-                Notification.CATEGORY_SERVICE
-            )
-            .setShowWhen(false)
-            .build()
     }
 
-    private fun createLocationChangedNotification(
-        lat: Double,
-        lon: Double
-    ): Notification {
+    private fun cancelRestart() {
 
-        return notificationBuilder(
-            ALERT_CHANNEL_ID
+        val alarmManager =
+            getSystemService(
+                AlarmManager::class.java
+            )
+
+        val intent =
+            Intent(
+                this,
+                BootReceiver::class.java
+            ).apply {
+                action =
+                    BootReceiver
+                        .ACTION_RESTART_SERVICE
+            }
+
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                this,
+                RESTART_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
+
+        alarmManager.cancel(
+            pendingIntent
         )
-            .setContentTitle("MockGPS")
-            .setContentText(
-                "Location changed: $lat, $lon"
-            )
-            .setSmallIcon(
-                android.R.drawable.ic_menu_mylocation
-            )
-            .setAutoCancel(true)
-            .setTimeoutAfter(3000)
-            .setOnlyAlertOnce(false)
-            .setCategory(
-                Notification.CATEGORY_EVENT
-            )
-            .setShowWhen(false)
-            .build()
     }
 
-    private fun cleanupProviders() {
+    private fun stopServiceCleanly() {
+
+        handler.removeCallbacks(
+            updateRunnable
+        )
+
+        cancelRestart()
 
         try {
-            if (gpsReady) {
-                locationManager.setTestProviderEnabled(
-                    GPS,
-                    false
-                )
-            }
+            @Suppress("DEPRECATION")
+            locationManager.setTestProviderEnabled(
+                GPS,
+                false
+            )
         } catch (_: Exception) {
         }
 
         try {
+            @Suppress("DEPRECATION")
+            locationManager.setTestProviderEnabled(
+                NETWORK,
+                false
+            )
+        } catch (_: Exception) {
+        }
+
+        try {
+            @Suppress("DEPRECATION")
             locationManager.removeTestProvider(
                 GPS
             )
@@ -593,16 +727,7 @@ class MockLocationService : Service() {
         }
 
         try {
-            if (networkReady) {
-                locationManager.setTestProviderEnabled(
-                    NETWORK,
-                    false
-                )
-            }
-        } catch (_: Exception) {
-        }
-
-        try {
+            @Suppress("DEPRECATION")
             locationManager.removeTestProvider(
                 NETWORK
             )
@@ -611,51 +736,80 @@ class MockLocationService : Service() {
 
         gpsReady = false
         networkReady = false
-    }
 
-    private fun stopServiceCleanly() {
+        driftLat = null
+        driftLon = null
+        driftAccuracy = 0f
+        nextDriftUpdate = 0L
 
-        handler.removeCallbacksAndMessages(
-            null
+        State.setServiceRunning(
+            this,
+            false
         )
 
-        cleanupProviders()
+        stopForeground(
+            STOP_FOREGROUND_REMOVE
+        )
+    }
+
+    override fun onTaskRemoved(
+        rootIntent: Intent?
+    ) {
 
         if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.N
+            State.isDesiredEnabled(this)
         ) {
-            stopForeground(
-                STOP_FOREGROUND_REMOVE
-            )
+            scheduleRestart()
         }
 
-        stopSelf()
+        super.onTaskRemoved(
+            rootIntent
+        )
     }
 
     override fun onDestroy() {
 
-        handler.removeCallbacksAndMessages(
-            null
+        handler.removeCallbacks(
+            updateRunnable
         )
 
-        cleanupProviders()
+        /*
+         * Do NOT cancel a scheduled restart here.
+         * onDestroy may happen because the process/service was killed.
+         * The alarm must remain alive while desired_enabled=true.
+         */
 
         if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.N
+            !State.isDesiredEnabled(this)
         ) {
-            stopForeground(
-                STOP_FOREGROUND_REMOVE
-            )
+            cancelRestart()
         }
+
+        try {
+            @Suppress("DEPRECATION")
+            locationManager.removeTestProvider(
+                GPS
+            )
+        } catch (_: Exception) {
+        }
+
+        try {
+            @Suppress("DEPRECATION")
+            locationManager.removeTestProvider(
+                NETWORK
+            )
+        } catch (_: Exception) {
+        }
+
+        State.setServiceRunning(
+            this,
+            false
+        )
 
         super.onDestroy()
     }
 
     override fun onBind(
         intent: Intent?
-    ): IBinder? {
-        return null
-    }
+    ): IBinder? = null
 }

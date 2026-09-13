@@ -48,6 +48,10 @@ You need:
 
 ## Installation
 
+### Official release
+
+Check existing [releases](https://github.com/BuriXon-code/MockGPS/releases/), select any version and download the prepared APK installer.
+
 ### Build with Gradle Wrapper
 
 Clone the repository and enter the project directory:

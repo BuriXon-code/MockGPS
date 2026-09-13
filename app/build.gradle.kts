@@ -6,12 +6,16 @@ android {
     namespace = "dev.burixon.mockgps"
     compileSdk = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "dev.burixon.mockgps"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0-beta"
+        versionName = "0.1.0"
     }
 
     compileOptions {

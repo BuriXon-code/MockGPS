@@ -31,6 +31,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import org.maplibre.android.MapLibre
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
@@ -38,15 +39,25 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
+import org.maplibre.geojson.Point
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
+import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor
+import org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import android.widget.FrameLayout
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var versionText: TextView
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var mapView: MapView
 
@@ -63,11 +74,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var scaleLabel: TextView
     private lateinit var bottomPanel: View
 
+    private var statusBarInsetTop = 0
+
     private var map: MapLibreMap? = null
 
     private var selectedMarker: Marker? = null
-    private var realMarker: Marker? = null
-
+    private var realLocationSource: GeoJsonSource? = null
     private var lastSelectedLat: Double? = null
     private var lastSelectedLon: Double? = null
 
@@ -155,10 +167,37 @@ class MainActivity : ComponentActivity() {
                 R.id.drawerLayout
             )
 
-        mapView =
-            findViewById(
-                R.id.mapView
+        drawerLayout.addDrawerListener(
+            object : DrawerLayout.SimpleDrawerListener() {
+
+                override fun onDrawerOpened(
+                    drawerView: View
+                ) {
+                    drawerView.bringToFront()
+                    drawerView.invalidate()
+                }
+            }
+        )
+
+        val mapContainer =
+            findViewById<FrameLayout>(
+                R.id.mapContainer
             )
+
+        mapView =
+            MapView(
+                this,
+                MapLibreMapOptions()
+                    .textureMode(true)
+            )
+
+        mapContainer.addView(
+            mapView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
 
         menuButton =
             findViewById(
@@ -169,6 +208,16 @@ class MainActivity : ComponentActivity() {
             findViewById(
                 R.id.coordinatesText
             )
+
+        versionText =
+            findViewById(
+                R.id.versionText
+            )
+
+        versionText.text =
+            "MockGPS ${BuildConfig.VERSION_NAME}\n" +
+                    "© 2026 Kamil BuriXon Burek\n" +
+                    "GPL-3.0"
 
         toggleButton =
             findViewById(
@@ -227,27 +276,6 @@ class MainActivity : ComponentActivity() {
 
         ViewCompat.setOnApplyWindowInsetsListener(
             findViewById(
-                R.id.rootContent
-            )
-        ) { _, insets ->
-
-            val navigation =
-                insets.getInsets(
-                    WindowInsetsCompat.Type.navigationBars()
-                )
-
-            bottomPanel.setPadding(
-                bottomPanel.paddingLeft,
-                bottomPanel.paddingTop,
-                bottomPanel.paddingRight,
-                14.dp + navigation.bottom
-            )
-
-            insets
-        }
-
-        ViewCompat.setOnApplyWindowInsetsListener(
-            findViewById(
                 R.id.drawer
             )
         ) { view, insets ->
@@ -264,8 +292,92 @@ class MainActivity : ComponentActivity() {
                 view.paddingBottom
             )
 
+            view.bringToFront()
+
             insets
         }
+
+        ViewCompat.setOnApplyWindowInsetsListener(
+            findViewById(
+                R.id.drawer
+            )
+        ) { view, insets ->
+
+            val status =
+                insets.getInsets(
+                    WindowInsetsCompat.Type.statusBars()
+                )
+
+            statusBarInsetTop =
+                status.top
+
+            view.setPadding(
+                view.paddingLeft,
+                statusBarInsetTop,
+                view.paddingRight,
+                view.paddingBottom
+            )
+
+            updateCompassPosition()
+
+            insets
+        }
+    }
+
+    private fun setupRealLocationLayer() {
+
+        val loadedMap = map ?: return
+        val style = loadedMap.style ?: return
+
+        if (style.getSource("real-location-source") != null) {
+            realLocationSource =
+                style.getSource("real-location-source") as? GeoJsonSource
+            return
+        }
+
+        val source =
+            GeoJsonSource(
+                "real-location-source"
+            )
+
+        style.addSource(source)
+
+        val layer =
+            CircleLayer(
+                "real-location-layer",
+                "real-location-source"
+            ).withProperties(
+                circleRadius(5f),
+                circleColor(
+                    AndroidColor.rgb(
+                        135,
+                        140,
+                        148
+                    )
+                ),
+                circleOpacity(1f),
+                circleStrokeColor(
+                    AndroidColor.WHITE
+                ),
+                circleStrokeWidth(1.5f)
+            )
+
+        style.addLayer(layer)
+
+        realLocationSource = source
+    }
+
+    private fun updateCompassPosition() {
+
+        val loadedMap =
+            map ?: return
+
+        loadedMap.uiSettings.setCompassMargins(
+            8.dp,
+            statusBarInsetTop + 8.dp,
+            8.dp,
+            8.dp
+        )
     }
 
     private fun setupUi() {
@@ -321,84 +433,45 @@ class MainActivity : ComponentActivity() {
             if (!checked) {
                 refreshFromState()
             }
+        }
 
-            findViewById<TextView>(
-                R.id.githubButton
-            ).setOnClickListener {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                            "https://github.com/BuriXon-code/MockGPS/"
-                        )
+        findViewById<TextView>(
+            R.id.githubButton
+        ).setOnClickListener {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "https://github.com/BuriXon-code/MockGPS/"
                     )
                 )
-            }
+            )
+        }
 
-            findViewById<TextView>(
-                R.id.websiteButton
-            ).setOnClickListener {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                            "https://burixon.dev/MockGPS/"
-                        )
+        findViewById<TextView>(
+            R.id.websiteButton
+        ).setOnClickListener {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "https://burixon.dev/MockGPS/"
                     )
                 )
-            }
+            )
+        }
 
-            findViewById<TextView>(
-                R.id.donationsButton
-            ).setOnClickListener {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                            "https://buycoffee.to/burixon-code"
-                        )
+        findViewById<TextView>(
+            R.id.donationsButton
+        ).setOnClickListener {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(
+                        "https://buycoffee.to/burixon-code"
                     )
                 )
-            }
-
-            findViewById<TextView>(
-                R.id.githubButton
-            ).setOnClickListener {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                            "https://github.com/BuriXon-code/MockGPS/"
-                        )
-                    )
-                )
-            }
-
-            findViewById<TextView>(
-                R.id.websiteButton
-            ).setOnClickListener {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                            "https://burixon.dev/MockGPS/"
-                        )
-                    )
-                )
-            }
-
-            findViewById<TextView>(
-                R.id.donationsButton
-            ).setOnClickListener {
-                startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        android.net.Uri.parse(
-                            "https://buycoffee.to/burixon-code"
-                        )
-                    )
-                )
-            }
+            )
         }
     }
 
@@ -415,9 +488,12 @@ class MainActivity : ComponentActivity() {
             loadedMap.uiSettings
                 .isAttributionEnabled = false
 
+            updateCompassPosition()
+
             loadedMap.setStyle(
                 "https://tiles.openfreemap.org/styles/liberty"
             ) {
+                setupRealLocationLayer()
 
                 loadedMap.addOnMapClickListener {
                         point ->
@@ -863,46 +939,32 @@ class MainActivity : ComponentActivity() {
         val loadedMap =
             map ?: return
 
-        val point =
-            LatLng(
-                lat,
-                lon
-            )
+        val style =
+            loadedMap.style
+                ?: return
 
-        @Suppress("DEPRECATION")
         if (
-            realMarker == null
+            realLocationSource == null
         ) {
-
-            realMarker =
-                loadedMap.addMarker(
-                    MarkerOptions()
-                        .position(point)
-                        .icon(
-                            markerIcon(
-                                AndroidColor.rgb(
-                                    135,
-                                    140,
-                                    148
-                                )
-                            )
-                        )
-                )
-
-        } else {
-
-            realMarker?.position =
-                point
-
-            realMarker?.icon =
-                markerIcon(
-                    AndroidColor.rgb(
-                        135,
-                        140,
-                        148
-                    )
-                )
+            setupRealLocationLayer()
         }
+
+        val source =
+            realLocationSource
+                ?: style.getSource(
+                    "real-location-source"
+                ) as? GeoJsonSource
+                ?: return
+
+        source.setGeoJson(
+            Point.fromLngLat(
+                lon,
+                lat
+            )
+        )
+
+        realLocationSource =
+            source
     }
 
     @SuppressLint("MissingPermission")

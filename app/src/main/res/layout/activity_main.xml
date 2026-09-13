@@ -13,16 +13,18 @@
         android:orientation="vertical"
         android:background="@color/ui_background">
 
+        <!-- MAP -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1">
 
-            <org.maplibre.android.maps.MapView
-                android:id="@+id/mapView"
+            <FrameLayout
+                android:id="@+id/mapContainer"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
+            <!-- SCALE BAR -->
             <LinearLayout
                 android:id="@+id/scaleContainer"
                 android:layout_width="wrap_content"
@@ -54,6 +56,7 @@
 
         </FrameLayout>
 
+        <!-- BOTTOM PANEL -->
         <LinearLayout
             android:id="@+id/bottomPanel"
             android:layout_width="match_parent"
@@ -77,13 +80,15 @@
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="58dp"
-                android:orientation="horizontal">
+                android:layout_height="66dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:clipChildren="false">
 
                 <TextView
                     android:id="@+id/menuButton"
                     android:layout_width="56dp"
-                    android:layout_height="58dp"
+                    android:layout_height="56dp"
                     android:layout_marginEnd="8dp"
                     android:gravity="center"
                     android:text="☰"
@@ -96,7 +101,7 @@
                 <Button
                     android:id="@+id/toggleButton"
                     android:layout_width="0dp"
-                    android:layout_height="58dp"
+                    android:layout_height="56dp"
                     android:layout_weight="1"
                     android:minHeight="0dp"
                     android:padding="0dp"
@@ -114,20 +119,23 @@
 
     </LinearLayout>
 
+    <!-- DRAWER -->
     <ScrollView
         android:id="@+id/drawer"
         android:layout_width="320dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@color/drawer_background"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:clipToPadding="false">
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:orientation="vertical"
             android:paddingBottom="24dp">
 
+            <!-- HEADER -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="90dp"
@@ -140,6 +148,7 @@
                 android:textStyle="bold"
                 android:background="@drawable/drawer_header" />
 
+            <!-- SETTINGS -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -151,84 +160,137 @@
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
+            <!-- START ON BOOT -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="62dp"
+                android:layout_height="76dp"
+                android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="22dp"
-                android:paddingEnd="16dp">
+                android:paddingEnd="14dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Start on boot"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp" />
+                    android:orientation="vertical">
 
-                <Switch
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Start on boot"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="Automatically start mocking after boot"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <android.widget.Switch
                     android:id="@+id/bootSwitch"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
 
             </LinearLayout>
 
+            <!-- BROADCAST COMMANDS -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="62dp"
+                android:layout_height="76dp"
+                android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="22dp"
-                android:paddingEnd="16dp">
+                android:paddingEnd="14dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Broadcast commands"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp" />
+                    android:orientation="vertical">
 
-                <Switch
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Broadcast commands"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="Allow external apps to control MockGPS"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <android.widget.Switch
                     android:id="@+id/broadcastSwitch"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
 
             </LinearLayout>
 
+            <!-- LOCATION DRIFT -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="62dp"
+                android:layout_height="76dp"
+                android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingStart="22dp"
-                android:paddingEnd="16dp">
+                android:paddingEnd="14dp">
 
-                <TextView
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Location drift"
-                    android:textColor="@color/text_primary"
-                    android:textSize="15sp" />
+                    android:orientation="vertical">
 
-                <Switch
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Location drift"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="Add realistic GPS movement"
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp" />
+
+                </LinearLayout>
+
+                <android.widget.Switch
                     android:id="@+id/driftSwitch"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
 
             </LinearLayout>
 
+            <!-- DIVIDER -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginStart="22dp"
-                android:layout_marginEnd="22dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
                 android:background="@color/divider" />
 
+            <!-- MAP -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="22dp"
-                android:paddingTop="22dp"
+                android:paddingTop="14dp"
                 android:paddingEnd="22dp"
                 android:text="Map"
                 android:textColor="@color/text_primary"
@@ -238,24 +300,28 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="22dp"
-                android:text="OpenFreeMap © OpenMapTiles&#10;Data from OpenStreetMap&#10;&#10;MapLibre Native © MapLibre contributors&#10;BSD 2-Clause License"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp"
-                android:lineSpacingExtra="4dp" />
+                android:paddingStart="22dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="22dp"
+                android:text="Map data © OpenStreetMap contributors&#10;Tiles by OpenFreeMap&#10;Map rendering by MapLibre"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp" />
 
+            <!-- DIVIDER -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginStart="22dp"
-                android:layout_marginEnd="22dp"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="8dp"
                 android:background="@color/divider" />
 
+            <!-- MOCKGPS -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="22dp"
-                android:paddingTop="22dp"
+                android:paddingTop="14dp"
                 android:paddingEnd="22dp"
                 android:text="MockGPS"
                 android:textColor="@color/text_primary"
@@ -266,12 +332,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="22dp"
-                android:paddingTop="10dp"
+                android:paddingTop="8dp"
                 android:paddingEnd="22dp"
-                android:text="A simple mock-location service for Android."
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
+                android:text="Open-source GPS mocking application for Android."
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp" />
 
+            <!-- GITHUB -->
             <TextView
                 android:id="@+id/githubButton"
                 android:layout_width="match_parent"
@@ -281,11 +349,16 @@
                 android:layout_marginEnd="16dp"
                 android:gravity="center_vertical"
                 android:paddingStart="16dp"
+                android:drawableStart="@drawable/github_ic_small"
+                android:drawablePadding="10dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:text="GitHub"
                 android:textColor="@color/baby_blue_dark"
                 android:textSize="14sp"
                 android:background="@drawable/drawer_link" />
 
+            <!-- WEBSITE -->
             <TextView
                 android:id="@+id/websiteButton"
                 android:layout_width="match_parent"
@@ -295,11 +368,16 @@
                 android:layout_marginEnd="16dp"
                 android:gravity="center_vertical"
                 android:paddingStart="16dp"
+                android:drawableStart="@drawable/website_ic_small"
+                android:drawablePadding="10dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:text="Website"
                 android:textColor="@color/baby_blue_dark"
                 android:textSize="14sp"
                 android:background="@drawable/drawer_link" />
 
+            <!-- DONATIONS -->
             <TextView
                 android:id="@+id/donationsButton"
                 android:layout_width="match_parent"
@@ -309,18 +387,24 @@
                 android:layout_marginEnd="16dp"
                 android:gravity="center_vertical"
                 android:paddingStart="16dp"
+                android:drawableStart="@drawable/donations_ic_small"
+                android:drawablePadding="10dp"
+                android:clickable="true"
+                android:focusable="true"
                 android:text="Donations"
                 android:textColor="@color/baby_blue_dark"
                 android:textSize="14sp"
                 android:background="@drawable/drawer_link" />
 
+            <!-- VERSION -->
             <TextView
+                android:id="@+id/versionText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="22dp"
                 android:paddingTop="22dp"
                 android:paddingEnd="22dp"
-                android:text="MockGPS 1.0&#10;© 2026 Kamil BuriXon Burek&#10;GPL-3.0"
+                android:text="MockGPS&#10;© 2026 Kamil BuriXon Burek&#10;GPL-3.0"
                 android:textColor="@color/text_muted"
                 android:textSize="12sp"
                 android:lineSpacingExtra="4dp" />

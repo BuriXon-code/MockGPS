@@ -18,13 +18,12 @@ class BootReceiver : BroadcastReceiver() {
 
         when (intent.action) {
 
-            Intent.ACTION_BOOT_COMPLETED,
-            Intent.ACTION_LOCKED_BOOT_COMPLETED,
-            Intent.ACTION_USER_UNLOCKED,
-            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+            Intent.ACTION_BOOT_COMPLETED -> {
 
                 if (
-                    !State.isAutoStart(context)
+                    !State.isAutoStart(
+                        context
+                    )
                 ) {
                     return
                 }
@@ -37,7 +36,9 @@ class BootReceiver : BroadcastReceiver() {
             ACTION_RESTART_SERVICE -> {
 
                 if (
-                    !State.isDesiredEnabled(context)
+                    !State.isDesiredEnabled(
+                        context
+                    )
                 ) {
                     return
                 }
@@ -62,11 +63,6 @@ class BootReceiver : BroadcastReceiver() {
             true
         )
 
-        /*
-         * Boot/recovery starts are silent.
-         * The persistent FGS notification is still shown by Android.
-         */
-
         State.setNotifyMode(
             context,
             State.NOTIFY_NONE
@@ -90,9 +86,11 @@ class BootReceiver : BroadcastReceiver() {
             }
 
         try {
+
             context.startForegroundService(
                 serviceIntent
             )
+
         } catch (_: Exception) {
         }
     }

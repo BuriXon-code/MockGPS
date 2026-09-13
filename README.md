@@ -1,4 +1,6 @@
-# MockGPS
+# MockGPS 🗺️
+
+![Banner](/banner.png)
 
 MockGPS is an Android application for testing and simulating device location. It provides a foreground location-mocking service and exposes a dedicated **Android broadcast interface** for external control.
 

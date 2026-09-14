@@ -36,6 +36,9 @@ import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.camera.CameraPosition
+import android.graphics.drawable.GradientDrawable
+import android.widget.ImageButton
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -54,6 +57,7 @@ import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import android.widget.FrameLayout
+import android.widget.Toast
 
 class MainActivity : ComponentActivity() {
 
@@ -63,8 +67,9 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var menuButton: TextView
     private lateinit var coordinatesText: TextView
+    private lateinit var copyCoordinatesButton: ImageButton
     private lateinit var toggleButton: Button
-
+    private lateinit var mockLocationButton: ImageButton
     private lateinit var bootSwitch: CompoundButton
     private lateinit var broadcastSwitch: CompoundButton
     private lateinit var driftSwitch: CompoundButton
@@ -77,7 +82,12 @@ class MainActivity : ComponentActivity() {
     private var statusBarInsetTop = 0
 
     private var map: MapLibreMap? = null
-
+    private val mapPrefs by lazy {
+        getSharedPreferences(
+            "map_camera",
+            MODE_PRIVATE
+        )
+    }
     private var selectedMarker: Marker? = null
     private var realLocationSource: GeoJsonSource? = null
     private var lastSelectedLat: Double? = null
@@ -209,6 +219,11 @@ class MainActivity : ComponentActivity() {
                 R.id.coordinatesText
             )
 
+        copyCoordinatesButton =
+            findViewById(
+                R.id.copyCoordinatesButton
+            )
+
         versionText =
             findViewById(
                 R.id.versionText
@@ -222,6 +237,11 @@ class MainActivity : ComponentActivity() {
         toggleButton =
             findViewById(
                 R.id.toggleButton
+            )
+
+        mockLocationButton =
+            findViewById(
+                R.id.mockLocationButton
             )
 
         bootSwitch =
@@ -324,6 +344,81 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun centerOnMockLocation() {
+
+        val loadedMap =
+            map ?: return
+
+        val lat =
+            State.getLat(this)
+
+        val lon =
+            State.getLon(this)
+
+        if (
+            lat == null ||
+            lon == null
+        ) {
+            return
+        }
+
+        val currentZoom =
+            loadedMap.cameraPosition.zoom
+
+        val targetZoom =
+            currentZoom.coerceAtLeast(
+                15.0
+            )
+
+        loadedMap.animateCamera(
+            CameraUpdateFactory.newLatLngZoom(
+                LatLng(
+                    lat,
+                    lon
+                ),
+                targetZoom
+            )
+        )
+    }
+
+    private fun updateMockLocationButtonAppearance() {
+
+        val color =
+            if (
+                State.isServiceRunning(this)
+            ) {
+                AndroidColor.rgb(
+                    224,
+                    72,
+                    82
+                )
+            } else {
+                AndroidColor.rgb(
+                    90,
+                    160,
+                    235
+                )
+            }
+
+        mockLocationButton.background =
+            GradientDrawable().apply {
+                shape =
+                    GradientDrawable.OVAL
+
+                setColor(color)
+
+                setStroke(
+                    1.dp,
+                    AndroidColor.argb(
+                        90,
+                        255,
+                        255,
+                        255
+                    )
+                )
+            }
+    }
+
     private fun setupRealLocationLayer() {
 
         val loadedMap = map ?: return
@@ -388,6 +483,48 @@ class MainActivity : ComponentActivity() {
             )
         }
 
+        copyCoordinatesButton.setOnClickListener {
+
+            val lat =
+                State.getLat(this)
+
+            val lon =
+                State.getLon(this)
+
+            if (
+                lat == null ||
+                lon == null
+            ) {
+                return@setOnClickListener
+            }
+
+            val coordinates =
+                String.format(
+                    Locale.US,
+                    "%.6f, %.6f",
+                    lat,
+                    lon
+                )
+
+            val clipboard =
+                getSystemService(
+                    android.content.ClipboardManager::class.java
+                )
+
+            clipboard.setPrimaryClip(
+                android.content.ClipData.newPlainText(
+                    "MockGPS coordinates",
+                    coordinates
+                )
+            )
+
+            Toast.makeText(
+                this,
+                "Coordinates copied.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
         toggleButton.setOnClickListener {
 
             animateButtonPress()
@@ -399,6 +536,10 @@ class MainActivity : ComponentActivity() {
             } else {
                 startMocking()
             }
+        }
+
+        mockLocationButton.setOnClickListener {
+            centerOnMockLocation()
         }
 
         bootSwitch.setOnCheckedChangeListener {
@@ -475,6 +616,110 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun saveCameraPosition() {
+
+        val loadedMap =
+            map ?: return
+
+        val position =
+            loadedMap.cameraPosition
+
+        val target =
+            position.target ?: return
+
+        mapPrefs.edit()
+            .putLong(
+                "lat",
+                target.latitude.toBits()
+            )
+            .putLong(
+                "lon",
+                target.longitude.toBits()
+            )
+            .putLong(
+                "zoom",
+                position.zoom.toBits()
+            )
+            .putLong(
+                "bearing",
+                position.bearing.toBits()
+            )
+            .putLong(
+                "tilt",
+                position.tilt.toBits()
+            )
+            .apply()
+    }
+
+    private fun restoreCameraPosition(): Boolean {
+
+        val loadedMap =
+            map ?: return false
+
+        if (
+            !mapPrefs.contains("lat") ||
+            !mapPrefs.contains("lon") ||
+            !mapPrefs.contains("zoom")
+        ) {
+            return false
+        }
+
+        val lat =
+            Double.fromBits(
+                mapPrefs.getLong(
+                    "lat",
+                    0L
+                )
+            )
+
+        val lon =
+            Double.fromBits(
+                mapPrefs.getLong(
+                    "lon",
+                    0L
+                )
+            )
+
+        val zoom =
+            Double.fromBits(
+                mapPrefs.getLong(
+                    "zoom",
+                    10.0.toBits()
+                )
+            )
+
+        val bearing =
+            Double.fromBits(
+                mapPrefs.getLong(
+                    "bearing",
+                    0.0.toBits()
+                )
+            )
+
+        val tilt =
+            Double.fromBits(
+                mapPrefs.getLong(
+                    "tilt",
+                    0.0.toBits()
+                )
+            )
+
+        loadedMap.cameraPosition =
+            CameraPosition.Builder()
+                .target(
+                    LatLng(
+                        lat,
+                        lon
+                    )
+                )
+                .zoom(zoom)
+                .bearing(bearing)
+                .tilt(tilt)
+                .build()
+
+        return true
+    }
+
     private fun setupMap() {
 
         mapView.getMapAsync {
@@ -509,10 +754,18 @@ class MainActivity : ComponentActivity() {
 
                 loadedMap.addOnCameraIdleListener {
                     updateScaleBar()
+                    saveCameraPosition()
                 }
 
-                showStoredLocations()
+                val restored =
+                    restoreCameraPosition()
+
+                showStoredLocations(
+                    moveCamera = !restored
+                )
+
                 updateScaleBar()
+                updateMockLocationButtonAppearance()
             }
         }
     }
@@ -602,6 +855,7 @@ class MainActivity : ComponentActivity() {
             }
         )
 
+        updateMockLocationButtonAppearance()
         updateSelectedMarkerAppearance()
 
         val lat =
@@ -618,7 +872,7 @@ class MainActivity : ComponentActivity() {
             coordinatesText.text =
                 String.format(
                     Locale.US,
-                    "%.6f, %.6f",
+                    "%.6f,%.6f",
                     lat,
                     lon
                 )
@@ -753,7 +1007,7 @@ class MainActivity : ComponentActivity() {
         coordinatesText.text =
             String.format(
                 Locale.US,
-                "%.6f, %.6f",
+                "%.6f,%.6f",
                 lat,
                 lon
             )
@@ -854,7 +1108,9 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun showStoredLocations() {
+    private fun showStoredLocations(
+        moveCamera: Boolean = true
+    ) {
 
         val selectedLat =
             State.getLat(this)
@@ -876,7 +1132,7 @@ class MainActivity : ComponentActivity() {
             updateSelectedMarker(
                 selectedLat,
                 selectedLon,
-                true
+                moveCamera
             )
         }
 
@@ -1414,6 +1670,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+
+        saveCameraPosition()
 
         stopRealLocationUpdates()
 

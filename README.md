@@ -23,6 +23,7 @@ Companion command-line project:
 - Companion POSIX shell command for Termux.
 - Quiet ongoing foreground-service notification showing the current coordinates.
 - GPL-3.0 licensed.
+- **COMPLETELY FREE AND AD-FREE!** (this is probably the most important information)
 
 ## Compatibility
 
